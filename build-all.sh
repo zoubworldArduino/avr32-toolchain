@@ -1,4 +1,42 @@
-#!/bin/sh
+# ================================
+# AVR32 TOOLCHAIN - STABLE MODE
+# Ubuntu 22/24/26 compatibility fix
+# ================================
+
+# ================================
+# AVR32 TOOLCHAIN STABLE FIX
+# Ubuntu 22 / 24 / 26
+# ================================
+
+# ================================
+# AVR32 TOOLCHAIN STABLE FIX (Ubuntu 22–26)
+# ================================
+
+set -e
+
+# HARD disable texinfo/doc generation (safe & correct)
+export MAKEINFO=:
+export TEXINFO=:
+export HELP2MAN=:
+
+# prevent info build recursion failure
+export BUILD_INFO=no
+export INFO_DEPS=none
+
+# stability
+export LC_ALL=C
+export LANG=C
+
+# build safety
+export MAKEFLAGS="-j$(nproc)"
+
+# suppress noisy warnings
+# -fgnu89-inline: GCC 4.4.7 sources use GNU89 'extern inline' semantics (e.g.
+# floor_log2/exact_log2 in toplev.h); modern host GCC defaults to C99 inline and
+# would flag these as redefinitions. Required to build the old GCC with GCC >= 5.
+export CFLAGS="-O2 -fcommon -w -fgnu89-inline"
+export CXXFLAGS="-O2 -fcommon -w"
+export CPPFLAGS="-w"
 
 # Copyright (C) 2006 Atmel Corp.
 # Copyright (C) 2013 Embecosm Limited
@@ -289,6 +327,8 @@ cd "${bd_binutils}"
 # Configure the build
 if "${rootdir}/binutils"/configure --target=avr32 \
         --disable-nls --disable-werror \
+        --disable-docs \
+          MAKEINFO=:\
         --with-pkgversion="AVR32 toolchain ${VERSION} (built $(date +%Y%m%d))" \
         --with-bugurl="http://www.atmel.com/avr" \
         --prefix=${installdir} >> "${logfile}" 2>&1
@@ -308,7 +348,7 @@ echo "Building binutils ..."
 
 # Per Arnold magic to get headers to reconfigure. We really need to get this
 # sorted properly, so plain make works OK.
-if make ${parallel} all-bfd TARGET-bfd=headers >> "${logfile}" 2>&1
+if make ${parallel} all-bfd TARGET-bfd=headers MAKEINFO=true INFO_DEPS=none >> "${logfile}" 2>&1
 then
     echo "  finished building BFD headers"
 else
@@ -322,7 +362,11 @@ rm -f bfd/Makefile
 
 # Build
 cd "${bd_binutils}"
-if make ${parallel} all-build all-binutils all-gas all-ld >> "${logfile}" 2>&1
+# HARD disable info targets (fix Ubuntu 23/24/26 texinfo breaks)
+sed -i 's/^SUBDIRS = .*doc.*/SUBDIRS = bfd gas ld opcodes/' Makefile.in 2>/dev/null || true
+sed -i 's/^SUBDIRS = .*doc.*/SUBDIRS = bfd gas ld opcodes/' Makefile 2>/dev/null || true
+
+if make ${parallel} all-build all-binutils all-gas all-ld MAKEINFO=true INFO_DEPS=none>> "${logfile}" 2>&1
 then
     echo "  finished building binutils"
 else
@@ -339,7 +383,7 @@ echo "Installing binutils ..."
 
 # Install
 cd "${bd_binutils}"
-if make install-binutils install-gas install-ld >> "${logfile}" 2>&1
+if make ${parallel} install-binutils install-gas install-ld MAKEINFO=true INFO_DEPS=none >> "${logfile}" 2>&1
 then
     echo "  finished installing binutils"
 else
@@ -385,7 +429,7 @@ echo "Building gcc (bootstrap) ..."
 # Build.
 cd "${bd_gcc_bs}"
 if make ${libppl} ${parallel_gcc} all-build all-gcc \
-        all-target-libgcc >> "${logfile}" 2>&1
+        all-target-libgcc MAKEINFO=true INFO_DEPS=none >> "${logfile}" 2>&1
 then
     echo "  finished building gcc (bootstrap)"
 else
@@ -402,7 +446,7 @@ echo "Installing gcc (bootstrap) ..."
 
 # Install
 cd "${bd_gcc_bs}"
-if make install-gcc install-target-libgcc >> "${logfile}" 2>&1
+if make install-gcc install-target-libgcc MAKEINFO=true INFO_DEPS=none >> "${logfile}" 2>&1
 then
     echo "  finished installing gcc (bootstrap)"
 else
@@ -448,7 +492,7 @@ echo "Building newlib ..."
 
 # Build
 cd "${bd_newlib}"
-if make ${parallel} all-target-libgloss all-target-newlib >> "${logfile}" 2>&1
+if make ${parallel} all-target-libgloss all-target-newlib MAKEINFO=true INFO_DEPS=none >> "${logfile}" 2>&1
 then
     echo "  finished building newlib"
 else
@@ -465,7 +509,7 @@ echo "Installing newlib ..."
 
 # Install
 cd "${bd_newlib}"
-if make install-target-libgloss install-target-newlib >> "${logfile}" 2>&1
+if make install-target-libgloss install-target-newlib MAKEINFO=true INFO_DEPS=none >> "${logfile}" 2>&1
 then
     echo "  finished installing newlib"
 else
@@ -515,7 +559,7 @@ echo "Building gcc (full) ..."
 # Build.
 cd "${bd_gcc}"
 if make ${libppl} ${parallel_gcc} all-build all-gcc all-target-libgcc \
-        all-target-libstdc++-v3 >> "${logfile}" 2>&1
+        all-target-libstdc++-v3 MAKEINFO=true INFO_DEPS=none >> "${logfile}" 2>&1
 then
     echo "  finished building gcc (full)"
 else
@@ -533,7 +577,7 @@ echo "Installing gcc (full) ..."
 # Install
 cd "${bd_gcc}"
 if make install-gcc install-target-libgcc install-target-libstdc++-v3 \
-        >> "${logfile}" 2>&1
+        MAKEINFO=true INFO_DEPS=none >> "${logfile}" 2>&1
 then
     echo "  finished installing gcc (full)"
 else
@@ -575,7 +619,7 @@ echo "Building gdb ..."
 
 # Build
 cd "${bd_gdb}"
-if make ${parallel} all-build all-gdb all-sim >> "${logfile}" 2>&1
+if make ${parallel} all-build all-gdb all-sim MAKEINFO=true INFO_DEPS=none >> "${logfile}" 2>&1
 then
     echo "  finished building gdb"
 else
@@ -592,7 +636,7 @@ echo "Installing gdb ..."
 
 # Install
 cd "${bd_gdb}"
-if make install-gdb install-sim >> "${logfile}" 2>&1
+if make install-gdb install-sim MAKEINFO=true INFO_DEPS=none >> "${logfile}" 2>&1
 then
     echo "  finished installing gdb"
 else
